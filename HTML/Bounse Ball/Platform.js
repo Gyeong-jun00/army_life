@@ -6,6 +6,11 @@ export class PlatformManager {
       { x: 80,  y: 310, width: 130, height: 20, color: '#8d99ae' },
       { x: 230, y: 200, width: 130, height: 20, color: '#8d99ae' },
       { x: 140, y: 100, width: 130, height: 20, color: '#8d99ae' }
+      { x: 50,  y: 500, width: 120, height: 15, color: '#8d99ae' },
+      { x: 220, y: 420, width: 130, height: 15, color: '#8d99ae' },
+      { x: 80,  y: 310, width: 110, height: 15, color: '#8d99ae' },
+      { x: 230, y: 200, width: 120, height: 15, color: '#8d99ae' },
+      { x: 140, y: 100, width: 120, height: 15, color: '#8d99ae' }
     ];
   }
 
