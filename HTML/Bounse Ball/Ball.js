@@ -4,7 +4,6 @@ export class Ball {
     this.startY = y;
     this.reset();
     
-<<<<<<< HEAD
     this.radius = 8;
     this.speed = 4;
     this.gravity = 0.35;
@@ -12,13 +11,7 @@ export class Ball {
     this.color = '#fffb00';
     this.borderColor = '#000000';
     this.borderWidth = 1;
-=======
-    this.radius = 12;
-    this.speed = 4;
-    this.gravity = 0.35;
-    this.bouncePower = -9.5;
-    this.color = '#fffb00';
->>>>>>> a9ddc98e21e04a273b7400480232b3fbe8b8b069
+
   }
 
   reset() {

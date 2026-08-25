@@ -1,11 +1,7 @@
 body {
   margin: 0;
   padding: 0;
-<<<<<<< HEAD
   background-color: #eee;
-=======
-  background-color: #1e1e24;
->>>>>>> a9ddc98e21e04a273b7400480232b3fbe8b8b069
   display: flex;
   justify-content: center;
   align-items: center;
@@ -14,12 +10,7 @@ body {
 }
 
 canvas {
-<<<<<<< HEAD
   background-color: #ffffff;
   border: 3px solid #ffffff;
-=======
-  background-color: #2b2d42;
-  border: 3px solid #edf2f4;
->>>>>>> a9ddc98e21e04a273b7400480232b3fbe8b8b069
   box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.4);
 }
