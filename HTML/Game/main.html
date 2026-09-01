@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phaser 3 First Game</title>
+    <!-- Phaser 3 CDN (인터넷을 통해 라이브러리를 직접 불러옵니다) -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #2d2d2d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+
+<script>
+    // 1. 게임 설정을 담는 객체
+    const config = {
+        type: Phaser.AUTO, // WebGL을 지원하면 WebGL, 아니면 Canvas 사용
+        width: 800,
+        height: 600,
+        physics: {
+            default: 'arcade', // 간단하고 가벼운 Arcade 물리 엔진 사용
+            arcade: {
+                gravity: { y: 300 }, // Y축 중력 적용
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    // 2. 게임 인스턴스 생성
+    const game = new Phaser.Game(config);
+
+    // 전역 변수 선언
+    let player;
+    let cursors;
+
+    // 3. 자원 로드 (이미지, 사운드 등)
+    function preload() {
+        // Phaser 공식 예제 이미지 로드 (테스트용)
+        this.load.image('sky', 'https://labs.phaser.io/assets/skies/space3.png');
+        this.load.image('logo', 'https://labs.phaser.io/assets/sprites/phaser3-logo.png');
+        this.load.image('red', 'https://labs.phaser.io/assets/particles/red.png');
+    }
+
+    // 4. 게임 오브젝트 생성 및 초기화
+    function create() {
+        // 배경 이미지 배치 (x, y 좌표)
+        this.add.image(400, 300, 'sky');
+
+        // 파티클(입자) 효과 생성
+        const emitter = this.add.particles(0, 0, 'red', {
+            speed: 100,
+            scale: { start: 1, end: 0 },
+            blendMode: 'ADD'
+        });
+
+        // 물리 엔진이 적용된 로고(플레이어) 스프라이트 생성
+        player = this.physics.add.image(400, 100, 'logo');
+        
+        // 화면 바깥으로 나가지 않고 튕기도록 설정
+        player.setCollideWorldBounds(true);
+        player.setBounce(1, 0.8); // (가로 튕김, 세로 튕김)
+        player.setVelocity(200, 200); // 초기 속도 (x, y)
+
+        // 파티클이 로고를 따라다니도록 설정
+        emitter.startFollow(player);
+
+        // 키보드 방향키 입력 감지 객체 생성
+        cursors = this.input.keyboard.createCursorKeys();
+    }
+
+    // 5. 게임 메인 루프 (매 프레임마다 지속 실행)
+    function update() {
+        // 방향키 입력에 따라 추가 속도 부여
+        if (cursors.left.isDown) {
+            player.setVelocityX(-300);
+        } else if (cursors.right.isDown) {
+            player.setVelocityX(300);
+        }
+
+        if (cursors.up.isDown) {
+            player.setVelocityY(-300);
+        }
+    }
+</script>
+
+</body>
+</html>
