@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>HTML5 Canvas 바둑판 - 입체 렌더링</title>
+  <style>
+    body {
+      background-color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: sans-serif;
+    }
+    h1 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .status {
+      margin-bottom: 12px;
+      font-size: 1.1rem;
+      font-weight: bold;
+    }
+    canvas {
+      background-color: #DCB35C;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .controls {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 16px;
+      font-size: 1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background-color: #333;
+      color: #fff;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #555;
+    }
+    button:disabled {
+      background-color: #aaa;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>19x19 바둑판</h1>
+  <div class="status" id="status">현재 차례: 흑돌(⚫)</div>
+  <canvas id="board" width="600" height="600"></canvas>
+
+  <div class="controls">
+    <button id="undoBtn">한 수 물리기 (Undo)</button>
+    <button id="resetBtn">게임 리셋 (Reset)</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const undoBtn = document.getElementById('undoBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // 1. 설정 및 상태 변수
+    const BOARD_SIZE = 19;
+    const PADDING = 30;
+    const CELL_SIZE = (canvas.width - PADDING * 2) / (BOARD_SIZE - 1);
+
+    let currentTurn = 1; // 1: 흑돌, 2: 백돌
+    let board = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
+    let history = [];
+
+    // 애니메이션 변수
+    let animatingStone = null;
+
+    // Web Audio API 오디오 컨텍스트
+    let audioCtx = null;
+
+    function playStoneSound() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      const now = audioCtx.currentTime;
+
+      // 메인 타격음
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, now);
+      osc.frequency.exponentialRampToValueAtTime(300, now + 0.04);
+
+      gain.gain.setValueAtTime(0.8, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.05);
+
+      // 울림음 (노이즈)
+      const bufferSize = audioCtx.sampleRate * 0.02;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const output = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      const whiteNoise = audioCtx.createBufferSource();
+      whiteNoise.buffer = buffer;
+
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.3, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+      whiteNoise.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+
+      whiteNoise.start(now);
+    }
+
+    // 2. 바둑판 및 화점 그리기
+    function drawBoard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < BOARD_SIZE; i++) {
+        ctx.beginPath();
+        ctx.moveTo(PADDING + i * CELL_SIZE, PADDING);
+        ctx.lineTo(PADDING + i * CELL_SIZE, canvas.height - PADDING);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(PADDING, PADDING + i * CELL_SIZE);
+        ctx.lineTo(canvas.width - PADDING, PADDING + i * CELL_SIZE);
+        ctx.stroke();
+      }
+
+      const starPoints = [3, 9, 15];
+      ctx.fillStyle = '#000000';
+      starPoints.forEach(x => {
+        starPoints.forEach(y => {
+          ctx.beginPath();
+          ctx.arc(PADDING + x * CELL_SIZE, PADDING + y * CELL_SIZE, 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      });
+    }
+
+    // 3. 고퀄리티 입체 바둑돌 그리기 (Radial Gradient & Shadow)
+    function drawSingleStone(x, y, color, scale = 1.0) {
+      const centerX = PADDING + x * CELL_SIZE;
+      const centerY = PADDING + y * CELL_SIZE;
+      const radius = (CELL_SIZE * 0.45) * scale;
+      const opacity = Math.min(1.0, scale);
+
+      ctx.save();
+      ctx.globalAlpha = opacity;
+
+      // A. 바둑돌 하단 드롭 섀도우 (입체감 증대)
+      ctx.beginPath();
+      ctx.arc(centerX + radius * 0.1, centerY + radius * 0.15, radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.fill();
+
+      // B. 흑돌 / 백돌 원형 그라데이션 (하이라이트 빛 표현)
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+
+      if (color === 1) {
+        // 흑돌: 좌상단에 매끄러운 3D 빛 반사 생성
+        const grad = ctx.createRadialGradient(
+          centerX - radius * 0.3, centerY - radius * 0.3, radius * 0.05,
+          centerX, centerY, radius
+        );
+        grad.addColorStop(0, '#666666'); // 하이라이트
+        grad.addColorStop(0.5, '#1a1a1a');
+        grad.addColorStop(1, '#000000');  // 외곽 그림자
+        ctx.fillStyle = grad;
+      } else {
+        // 백돌: 도자기/조개 질감의 부드러운 구체 입체감 생성
+        const grad = ctx.createRadialGradient(
+          centerX - radius * 0.25, centerY - radius * 0.25, radius * 0.05,
+          centerX, centerY, radius
+        );
+        grad.addColorStop(0, '#FFFFFF'); // 반사광
+        grad.addColorStop(0.7, '#E6E6E6');
+        grad.addColorStop(1, '#B0B0B0');  // 음영
+        ctx.fillStyle = grad;
+      }
+
+      ctx.fill();
+
+      // 백돌 은은한 외곽선 보정
+      if (color === 2) {
+        ctx.strokeStyle = 'rgba(160, 160, 160, 0.5)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    // 4. 돌 전체 그리기
+    function drawStones() {
+      for (let x = 0; x < BOARD_SIZE; x++) {
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          if (animatingStone && animatingStone.x === x && animatingStone.y === y) {
+            continue;
+          }
+          if (board[x][y] !== 0) {
+            drawSingleStone(x, y, board[x][y], 1.0);
+          }
+        }
+      }
+
+      if (animatingStone) {
+        const scale = 1.35 - (0.35 * animatingStone.progress);
+        drawSingleStone(animatingStone.x, animatingStone.y, animatingStone.color, scale);
+      } else if (history.length > 0) {
+        const lastMove = history[history.length - 1];
+        const lastX = PADDING + lastMove.x * CELL_SIZE;
+        const lastY = PADDING + lastMove.y * CELL_SIZE;
+
+        // 착수점 표시 (조금 더 세련된 빨간 도트)
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#FF3B30';
+        ctx.fill();
+      }
+    }
+
+    function updateStatus() {
+      statusEl.textContent = `현재 차례: ${currentTurn === 1 ? '흑돌(⚫)' : '백돌(⚪)'}`;
+    }
+
+    function render() {
+      drawBoard();
+      drawStones();
+      updateStatus();
+    }
+
+    // 5. 애니메이션 루프
+    function animateStonePlacement() {
+      if (!animatingStone) return;
+
+      animatingStone.progress += 0.15;
+
+      if (animatingStone.progress >= 1.0) {
+        playStoneSound();
+
+        board[animatingStone.x][animatingStone.y] = animatingStone.color;
+        animatingStone = null;
+        undoBtn.disabled = false;
+        resetBtn.disabled = false;
+        render();
+      } else {
+        render();
+        requestAnimationFrame(animateStonePlacement);
+      }
+    }
+
+    // 6. 클릭 이벤트
+    canvas.addEventListener('click', (event) => {
+      if (animatingStone) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+
+      const x = Math.round((mouseX - PADDING) / CELL_SIZE);
+      const y = Math.round((mouseY - PADDING) / CELL_SIZE);
+
+      if (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+        if (board[x][y] === 0) {
+          undoBtn.disabled = true;
+          resetBtn.disabled = true;
+
+          animatingStone = {
+            x: x,
+            y: y,
+            color: currentTurn,
+            progress: 0.0
+          };
+
+          history.push({ x, y, color: currentTurn });
+          currentTurn = currentTurn === 1 ? 2 : 1;
+
+          animateStonePlacement();
+        }
+      }
+    });
+
+    // 7. 한 수 물리기
+    undoBtn.addEventListener('click', () => {
+      if (history.length === 0 || animatingStone) return;
+
+      const lastMove = history.pop();
+      board[lastMove.x][lastMove.y] = 0;
+      currentTurn = lastMove.color;
+
+      render();
+    });
+
+    // 8. 게임 리셋
+    resetBtn.addEventListener('click', () => {
+      if (history.length === 0 || animatingStone) return;
+
+      if (confirm('게임을 처음부터 다시 시작하시겠습니까?')) {
+        board = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0));
+        history = [];
+        currentTurn = 1;
+        render();
+      }
+    });
+
+    // 초기화
+    render();
+  </script>
+</body>
+</html>
